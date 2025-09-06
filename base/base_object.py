@@ -1,5 +1,3 @@
-from selenium.webdriver import Keys
-from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.ui import WebDriverWait
@@ -7,16 +5,50 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.common.exceptions import TimeoutException
 import urllib.parse
 
-class BaseObject:
-    def __init__(self, driver: WebDriver):
-        self.driver = driver
-        self.wait = WebDriverWait(driver, 5)
 
+class url_contains:
+    def __init__(self, text: str):
+        self.text = text
+
+    def __call__(self, driver: WebDriver) -> bool:
+        return self.text in driver.current_url
+
+
+class new_tab_opened:
+    def __init__(self, original_handles: list[str]):
+        self.original_handles = original_handles
+
+    def __call__(self, driver: WebDriver) -> bool:
+        return len(driver.window_handles) > len(self.original_handles)
+
+
+class url_not_blank_and_contains:
+    def __init__(self, keywords: list[str]):
+        self.keywords = keywords
+
+    def __call__(self, driver: WebDriver) -> bool:
+        url = driver.current_url
+        return url not in ("", "about:blank") and any(k in url.lower() for k in self.keywords)
+
+
+class BaseObject:
+
+    def __init__(self, driver: WebDriver, timeout: int = 5):
+        self.driver = driver
+        self.wait = WebDriverWait(driver, timeout)
+
+    # --- ожидания стандартные ---
     def _is_visible(self, locator: tuple[str, str]) -> WebElement:
         return self.wait.until(ec.visibility_of_element_located(locator))
 
     def _is_clickable(self, locator: tuple[str, str]) -> WebElement:
         return self.wait.until(ec.element_to_be_clickable(locator))
+
+    def _is_present(self, locator: tuple[str, str]) -> WebElement:
+        return self.wait.until(ec.presence_of_element_located(locator))
+
+    def _is_not_visible(self, locator: tuple[str, str]) -> bool:
+        return self.wait.until(ec.invisibility_of_element_located(locator))
 
     def _is_not_clickable(self, locator: tuple[str, str]) -> bool:
         try:
@@ -25,40 +57,28 @@ class BaseObject:
         except TimeoutException:
             return False
 
-    def _is_present(self, locator: tuple[str, str]) -> WebElement:
-        return self.wait.until(ec.presence_of_element_located(locator))
-
-    def _is_not_visible(self, locator: tuple[str, str]):
-        return self.wait.until(ec.invisibility_of_element_located(locator))
-
-    def click(self,locator: tuple[str, str], is_present=True) -> None:
-        if is_present:
-            self._is_clickable(locator).click()
-        else:
-            self._is_present(locator).click()
-
     def _are_present(self, locator: tuple[str, str]) -> list[WebElement]:
         return self.wait.until(ec.presence_of_all_elements_located(locator))
 
-    def get_elements_count(self,
-                           locator: tuple[str, str],
-                           min_count: int | None = None) -> int:
-        if min_count is None:
-            elements = self._are_present(locator)  # ждём ≥1
-        else:
-            # ждём, пока find_elements вернёт нужное число
-            self.wait.until(lambda d: len(d.find_elements(*locator)) >= min_count)
-            elements = self.driver.find_elements(*locator)
 
-        return len(elements)
+    def click(self, locator: tuple[str, str], ensure_clickable: bool = True) -> None:
+        element = self._is_clickable(locator) if ensure_clickable else self._is_present(locator)
+        try:
+            element.click()
+        except Exception:
+            self.driver.execute_script(
+                "arguments[0].scrollIntoView({block:'center',inline:'center'}); arguments[0].click();",
+                element,
+            )
 
-    def send_keys(self, locator: tuple[str, str], value: str, is_visible=True) -> None:
-        if is_visible:
-            self._is_visible(locator).send_keys(value)
+    def send_keys(self, locator: tuple[str, str], value: str, ensure_visible: bool = True) -> None:
+        element = self._is_visible(locator) if ensure_visible else self._is_present(locator)
+        element.send_keys(value)
 
-    def get_current_url(self, locator: tuple[str, str]) -> str:
-        self._is_not_visible(locator)
+    def get_current_url(self, wait_locator: tuple[str, str]) -> str:
+        """Ждёт исчезновения элемента и возвращает текущий URL."""
+        self._is_not_visible(wait_locator)
         return urllib.parse.unquote(self.driver.current_url)
 
-    def get_text(self, locator:tuple[str, str]) -> str:
+    def get_text(self, locator: tuple[str, str]) -> str:
         return self._is_visible(locator).text

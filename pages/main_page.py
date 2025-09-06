@@ -1,7 +1,9 @@
 from utils.locators import Locators
 from base.base_object import BaseObject
 from support.assertions import Assertions
-from config import URL
+from utils.constants import QuestionText
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 
 
 class MainPage(BaseObject):
@@ -10,45 +12,23 @@ class MainPage(BaseObject):
         super().__init__(driver)
         self.assertion = Assertions
         self.locators = Locators
+        self.questions = QuestionText
+        self.close_cookie_banner_if_present()
 
-    @classmethod
-    def scroll_to_bottom(cls, driver):
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    def close_cookie_banner_if_present(self):
+        try:
+            banner = self.driver.find_element(By.CLASS_NAME, "App_CookieConsent__1yUIN")
+            button = banner.find_element(By.TAG_NAME, "button")
+            button.click()
+        except NoSuchElementException:
+            pass
+        except Exception:
+            pass
 
-    def get_text_how_much_does_it_cost(self):
-        self.click(self.locators.HOW_MUCH_DOES_IT_COST_ACCORDION)
-        self.get_text(self.locators.HOW_MUCH_DOES_IT_COST_TEXT)
-
-    def get_text_can_i_have_many_scooters(self):
-        self.click(self.locators.CAN_I_HAVE_MANY_SCOOTERS_ACCORDION)
-        self.get_text(self.locators.CAN_I_HAVE_MANY_SCOOTERS_TEXT)
-
-    def get_text_how_to_pay(self):
-        self.click(self.locators.HOW_TO_PAY_ACCORDION)
-        self.get_text(self.locators.HOW_TO_PAY_TEXT)
-
-    def get_text_can_i_order_today(self):
-        self.click(self.locators.CAN_I_ORDER_FOR_TODAY_ACCORDION)
-        self.get_text(self.locators.CAN_I_ORDER_FOR_TODAY_TEXT)
-
-    def get_text_can_i_prolong_or_return_earlier(self):
-        self.click(self.locators.CAN_PROLONG_OR_RETURN_EARLIER_ACCORDION)
-        self.get_text(self.locators.CAN_PROLONG_OR_RETURN_EARLIER_TEXT)
-
-    def get_text_carger_with_scooter(self):
-        self.click(self.locators.CHARDER_WITH_SCOOTER_ACCORDION)
-        self.get_text(self.locators.CHARDER_WITH_SCOOTER_TEXT)
-
-    def get_text_can_cancel(self):
-        self.click(self.locators.CAN_CANCEL_ACCORDION)
-        self.get_text(self.locators.CAN_CANCEL_TEXT)
-
-    def get_text_leave_far_from_mkad(self):
-        self.click(self.locators.LEAVE_FAR_FROM_MKAD_ACCORDION)
-        self.get_text(self.locators.LEAVE_FAR_FROM_MKAD_TEXT)
-
-    def is_question_text_correct(self):
+    def check_question_text(self, accordion_locator, text_locator, expected_text):
+        self.click(accordion_locator)
+        actual_text = self.get_text(text_locator)
         self.assertion.assert_equal(
-            expected=message,
-            actual=self.get_text(self.ERROR_MESSAGE)
+            expected=expected_text,
+            actual=actual_text
         )
